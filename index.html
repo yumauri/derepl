@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Text Areas</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+  <style>
+    body {
+      margin: 0;
+      padding: 10px;
+      font-family: Arial, sans-serif;
+      background-color: #1e1e1e;
+    }
+
+    textarea {
+      width: 100%;
+      padding: 6px;
+      margin: 5px 0;
+      border: 1px solid #444;
+      border-radius: 4px;
+      font-size: 14px;
+      resize: vertical;
+      box-sizing: border-box;
+      background-color: #252526;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      color: #ddd;
+      font-family: 'Consolas', 'Monaco', monospace;
+    }
+
+    textarea::placeholder {
+      color: #888;
+    }
+
+    .small-textarea {
+      height: 100px;
+    }
+
+    .large-textarea {
+      height: 200px;
+    }
+
+    label {
+      display: block;
+      margin-top: 10px;
+      color: #bbb;
+      font-weight: bold;
+    }
+
+    pre {
+      margin: 5px 0;
+      padding: 6px !important;
+      background: #1e1e1e !important;
+      border: 1px solid #444;
+      border-radius: 4px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      box-sizing: border-box;
+      width: 100%;
+    }
+
+    pre code {
+      border-radius: 4px;
+      background: #1e1e1e !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      width: 100%;
+      box-sizing: border-box;
+      display: block;
+    }
+
+    /* Override any Prism defaults */
+    pre[class*="language-"] {
+      margin: 5px 0;
+      padding: 6px !important;
+    }
+
+    code[class*="language-"] {
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .error-message {
+      color: #ff6b6b !important;
+      font-style: italic;
+      font-family: 'Consolas', 'Monaco', monospace;
+      display: block;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+
+    /* Override Prism styles for error message */
+    .error-message * {
+      color: #ff6b6b !important;
+    }
+
+    .error-message.language-javascript {
+      color: #ff6b6b !important;
+    }
+
+    /* Remove the standalone error div styles since we're moving it into the pre block */
+    #output-container pre {
+      margin: 5px 0;
+      padding: 6px !important;
+    }
+  </style>
+</head>
+<body>
+  <label for="compressed">Compressed</label>
+  <textarea id="compressed" class="small-textarea"></textarea>
+  <div id="output-container" class="hidden">
+    <label for="decompressed">Decompressed</label>
+    <pre><code id="decompressed" class="language-javascript"></code><code id="error-message" class="error-message"></code></pre>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+  <script>
+    const keyStrUriSafe = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$';
+    const baseReverseDic = {};
+    const charAt = (str, i) => str.charAt(i);
+    for (let i = 0; i < keyStrUriSafe.length; i++) {
+      baseReverseDic[charAt(keyStrUriSafe, i)] = i;
+    }
+
+    function decompress(input) {
+      if (input == null) return '';
+      if (input == '') return null;
+      input = input.replace(/ /g, '+');
+
+      const dictionary = [0, 1, 2];
+      let enlargeIn = 4;
+      let dictSize = 4;
+      let numBits = 3;
+      let entry = '';
+      const result = [];
+      let w;
+      let bits = 0;
+      let resb;
+      let maxpower = 2 ** 2;
+      let power = 1;
+      let c;
+      let dataVal = baseReverseDic[charAt(input, 0)];
+      let dataPosition = 32;
+      let dataIndex = 1;
+
+      const updateData = () => {
+        while (power != maxpower) {
+          resb = dataVal & dataPosition;
+          dataPosition >>= 1;
+          if (dataPosition == 0) {
+            dataPosition = 32;
+            dataVal = baseReverseDic[charAt(input, dataIndex++)];
+          }
+          bits |= (resb > 0 ? 1 : 0) * power;
+          power <<= 1;
+        }
+      };
+
+      const updateDataPower = exp => {
+        bits = 0;
+        maxpower = 2 ** exp;
+        power = 1;
+        updateData();
+        return String.fromCharCode(bits);
+      };
+
+      updateData();
+
+      switch (bits) {
+        case 0:
+          c = updateDataPower(8);
+          break;
+        case 1:
+          c = updateDataPower(16);
+          break;
+        case 2:
+          return '';
+      }
+      dictionary[3] = c;
+      w = c;
+      result.push(c);
+      while (true) {
+        if (dataIndex > input.length) {
+          return '';
+        }
+
+        updateDataPower(numBits);
+
+        switch ((c = bits)) {
+          case 0:
+            dictionary[dictSize++] = updateDataPower(8);
+            c = dictSize - 1;
+            enlargeIn--;
+            break;
+          case 1:
+            dictionary[dictSize++] = updateDataPower(16);
+            c = dictSize - 1;
+            enlargeIn--;
+            break;
+          case 2:
+            return result.join('');
+        }
+
+        if (enlargeIn == 0) {
+          enlargeIn = 2 ** numBits;
+          numBits++;
+        }
+
+        if (dictionary[c]) {
+          entry = dictionary[c];
+        } else {
+          if (c === dictSize) {
+            entry = w + charAt(w, 0);
+          } else {
+            return null;
+          }
+        }
+        result.push(entry);
+
+        dictionary[dictSize++] = w + charAt(entry, 0);
+        enlargeIn--;
+
+        w = entry;
+
+        if (enlargeIn == 0) {
+          enlargeIn = 2 ** numBits;
+          numBits++;
+        }
+      }
+    }
+
+    // Update syntax highlighting when text changes
+    document.getElementById('compressed').addEventListener('input', function() {
+      const outputContainer = document.getElementById('output-container');
+      const errorMessage = document.getElementById('error-message');
+      const code = document.getElementById('decompressed');
+
+      // If empty, hide the entire container
+      if (!this.value.trim()) {
+        outputContainer.classList.add('hidden');
+        return;
+      }
+
+      // Show the container since we'll display either code or error
+      outputContainer.classList.remove('hidden');
+
+      try {
+        const decompressed = decompress(this.value);
+        if (decompressed === null || decompressed === '') {
+          // Show error, hide code
+          code.textContent = '';
+          code.classList.add('hidden');
+          errorMessage.textContent = '// Failed to decompress: invalid compressed string';
+          errorMessage.classList.remove('hidden');
+        } else {
+          // Show code, hide error
+          errorMessage.textContent = '';
+          errorMessage.classList.add('hidden');
+          code.textContent = decompressed;
+          code.classList.remove('hidden');
+          Prism.highlightElement(code);
+        }
+      } catch (err) {
+        // Show error, hide code
+        code.textContent = '';
+        code.classList.add('hidden');
+        errorMessage.textContent = '// Failed to decompress: ' + err.message;
+        errorMessage.classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>
